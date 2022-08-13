@@ -6,7 +6,7 @@ roobma,
 
 A roomba is equipped with:
 
-- 16 punchcard slots containing 16 instructions each
+- 16 punchcard slots containing up to 16 instructions each
 - 4 registers, A, B, C, and D, plus a pseudo-register for the instruction pointer
 - 4 ports for peripherals
 - Automatic item vacuum and inventory
@@ -22,6 +22,8 @@ increase counter-clockwise.
 A roomba's instruction pointer (IP) starts at card #0, index #0. At each execution step, it executes the command pointed
 to by the IP and increments the IP. Once it reaches the end of a card, it goes back to the top of that card.
 (To switch cards, use the `CRD` opcode.)
+
+Empty lines will be skipped during execution.
 
 ### Registers
 
@@ -43,8 +45,8 @@ ADD 600
 
 ### Opcodes
 
-Each opcode takes an *argument* and an optional *conditional flag.* The argument can be a literal integer between -999
-and 999, one of the four registers, or a label. The conditional flag can be `+`, `-`, or `=`.
+There are 16 opcodes. Each opcode takes an *argument* and an optional *conditional flag.* The argument can be a literal 
+integer between -999 and 999, one of the four registers, or a label. The conditional flag can be `+`, `-`, or `=`.
 
 An opcode marked with the `+` conditional flag will be skipped unless the `C` register is greater than 0. Similarly,
 the `-` flag requires the `C` register to be less than 0, and the `=` flag requires it to be equal.
@@ -54,7 +56,8 @@ the `-` flag requires the `C` register to be less than 0, and the `=` flag requi
 Labels can come before opcodes. They're simply any string followed by a colon, and can be used as arguments.
 
 When compiling a program, labels used as arguments are syntactic sugar for integers; they represent the line they're
-written on. This can help with writing `JMP` instructions.
+written on, or if they're on a line by themself, the next line with an opcode on it. This can help with writing `JMP` 
+instructions.
 
 ### Comments
 
@@ -100,11 +103,13 @@ and what it does.
 
 - `JMP`: *Jump* to line `X` in the given card, so that line `X` will be the next line executed.
 - `JBY`: *Jump By.* Offset the instruction pointer by the given amount. Positive numbers will jump
-  forward, negative numbers will jump backwards, and 0 will enter an infinite loop. The IP will wrap
-  at the boundaries.
-- `CRD`: *Card.* Move the instruction pointer to instruction 0 of the given card index. (Note that the IP
-  automatically wraps around at the end of any given card, so there's no need to end cards with `CRD <the  
-  current card index>`.)
+  forward, negative numbers will jump backwards, and 0 will enter an infinite loop.  
+  The IP will wrap at the boundaries, so executing `JBY 10` at line 8 will move the IP to line 2.
+- `CRD`: *Card.* Move the instruction pointer to instruction 0 of the given card index.  
+  Note that the IP automatically wraps around at the end of any given card, so there's no need to end cards with 
+  `CRD <the current card index>`.  
+  Also note that if the roomba tries to go to a card that doesn't exist, it will instead jump to card 0 (which
+  must exist).
 - `CRJ`: *Card Jump.* Move the instruction pointer to the given card index, but keep the current line index.
   If a `CRJ` instruction is executed on line 8, then the next instruction executed will be line 8 on whatever card
   it is.
@@ -124,7 +129,8 @@ and what it does.
 - `ROT`: *Rotate* the roomba by `X` degrees. `ROT 90` makes the roomba face orthogonally right, and
   `ROT -90` makes the roomba face orthogonally left.
 - `PHL`: *Peripheral.* Interact with the peripheral in slot `X` (0-indexed). Peripherals all do different things, but
-  they usually do some kind of operation with the `D` and/or `A` registers.
+  they usually do some kind of operation with the `D` and/or `A` registers.  
+  Trying to interact with a peripheral slot that isn't inserted, or that is out of bounds, just does nothing.
 - `SLP`: *Sleep* for the given number of ticks, where 1 tick is 1/20 of a second. Execution hangs for that long, and
   the roomba will pick up at the next argument once it is through.
 
