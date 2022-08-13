@@ -8,4 +8,5 @@ public interface RoombasModAPI {
     static ResourceLocation modLoc(String s) {
         return new ResourceLocation(MOD_ID, s);
     }
+
 }

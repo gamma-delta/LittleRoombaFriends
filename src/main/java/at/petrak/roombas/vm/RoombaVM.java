@@ -15,17 +15,25 @@ import static at.petrak.roombas.api.RoombasModAPI.modLoc;
 
 public abstract class RoombaVM {
     public static final byte MAX_CARD_LENGTH = 16;
-    public  static final byte MAX_CARD_COUNT = 16;
+    public static final byte MAX_CARD_COUNT = 16;
     public static final short MAX_PERIPHERAL_COUNT = 4;
+
+    /**
+     * When the implementor tries to tick, send the tick to the VM when this is its mode.
+     */
+    public static final ResourceLocation MODE_EXECUTING = modLoc("vm/execute");
+    public static final ResourceLocation MODE_MOVE = modLoc("vm/move");
+    public static final ResourceLocation MODE_TURN = modLoc("vm/turn");
+    public static final ResourceLocation MODE_SLEEP = modLoc("vm/sleep");
 
     public byte ip = 0;
     public byte cardIdx = 0;
 
     /**
      * The instructions are indexed instructions[card][row].
-     *
+     * <p>
      * Instructions are not nullable, but not all 16 slots need be filled.
-     *
+     * <p>
      * It's the implementor's job to make whatever highlight for what line is executing line up.
      */
     public List<List<Instruction>> instructions = new ArrayList<>();
@@ -35,33 +43,38 @@ public abstract class RoombaVM {
     /**
      * The roomba VM itself defines its own modes, and it also can get modes set
      * by peripherals or implementors.
-     *
+     * <p>
      * The implementor might not even call tick
      */
-    public ResourceLocation mode = modLoc("executing");
+    public ResourceLocation mode = MODE_EXECUTING;
     public CompoundTag modeData = new CompoundTag();
 
-    public abstract @Nullable Peripheral getPeripheral(short index);
+    public abstract @Nullable
+    Peripheral getPeripheral(short index);
 
     /**
      * Tick the state. If the mode is `roombas:executing`, execute the instructions,
      * otherwise passthru to peripherals.
      */
-    public void tick() {
-        if (this.mode.equals(modLoc("executing"))) {
+    public void tickInherent() {
+        if (this.mode.equals(MODE_EXECUTING)) {
             this.execute();
         } else {
             for (short i = (short) 0; i < MAX_PERIPHERAL_COUNT; i++) {
                 var perph = this.getPeripheral(i);
                 if (perph != null) {
                     var stop = perph.tickMode(this);
-                    if (stop) break;
+                    if (stop) {
+                        break;
+                    }
                 }
             }
         }
     }
 
-    /** Execute one instruction! */
+    /**
+     * Execute one instruction!
+     */
     public void execute() {
         if (this.cardIdx >= this.instructions.size()) {
             this.cardIdx = 0;
@@ -162,12 +175,12 @@ public abstract class RoombaVM {
 
             case MOV -> {
                 // Executor picks up on this, saves the current location to the tag...
-                this.mode = modLoc("move/start");
+                this.mode = MODE_MOVE;
                 this.modeData = new CompoundTag();
                 this.modeData.putShort("distance", arg);
             }
             case ROT -> {
-                this.mode = modLoc("rotate/start");
+                this.mode = MODE_TURN;
                 this.modeData = new CompoundTag();
                 this.modeData.putShort("angle", arg);
             }
@@ -178,7 +191,7 @@ public abstract class RoombaVM {
                 }
             }
             case SLP -> {
-                this.mode = modLoc("sleep/start");
+                this.mode = MODE_SLEEP;
                 this.modeData = new CompoundTag();
                 this.modeData.putShort("time", arg);
             }
@@ -191,7 +204,7 @@ public abstract class RoombaVM {
         if (this.cardIdx > this.instructions.size()) {
             this.cardIdx = 0;
         }
-        this.ip = (byte) Math.floorMod(this.ip, this.instructions.get(this.cardIdx).size());
+        this.ip = (byte) Mth.positiveModulo(this.ip, this.instructions.get(this.cardIdx).size());
     }
 
     public static short saturate(int x) {
@@ -260,7 +273,7 @@ public abstract class RoombaVM {
         var regiTag = tag.getCompound("registers");
         for (Register regi : Register.values()) {
             if (regiTag.contains(regi.name())) {
-               this.registers.put(regi, saturate(regiTag.getShort(regi.name())));
+                this.registers.put(regi, saturate(regiTag.getShort(regi.name())));
             } else {
                 this.registers.put(regi, (short) 0);
             }
